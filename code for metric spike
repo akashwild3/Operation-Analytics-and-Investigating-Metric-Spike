@@ -1,0 +1,115 @@
+/** 
+yameer_users --> gives me user level data
+yameer_event --> gives me event level data
+yameer_email --> gives me email level data
+**/
+
+
+/** 
+question:1 
+User Engagement: To measure the activeness of a user. Measuring if the user finds quality in a product/service.
+Your task: Calculate the weekly user engagement?
+**/
+
+select 
+extract(week from occurred_at)as week_num,
+COUNT (distinct user_id)
+FROM
+tutorial.yammer_events
+GROUP by 
+week_num
+
+--Question 2 : User Growth: Amount of users growing over time for a product.
+select 
+weeknum,
+year,
+num_active_user,
+SUM(num_active_user)over(order by year, weeknum rows between unbounded preceding and current row)as cum_active_users
+FROM
+(
+select
+extract(year from activated_at) as year,
+extract(week from activated_at)as weeknum,
+count(distinct user_id)as num_active_user
+FROM 
+tutorial.yammer_users
+WHERE
+state='active'
+group by 
+weeknum,
+year
+order BY
+weeknum,
+year
+)a 
+
+
+--question :3 Weekly Retention: Users getting retained weekly after signing-up for a product.
+
+SELECT 
+COUNT(user_id)as users,
+SUM(CASE WHEN retention_week = 1 THEN 1 ELSE 0 END ) AS  week_1, 
+SUM(CASE WHEN retention_week = 2 THEN 1 ELSE 0 END ) AS  week_2, 
+SUM(CASE WHEN retention_week = 3 THEN 1 ELSE 0 END ) AS  week_3, 
+SUM(CASE WHEN retention_week = 4 THEN 1 ELSE 0 END ) AS  week_4,
+SUM(CASE WHEN retention_week = 5 THEN 1 ELSE 0 END ) AS  week_5
+FROM 
+(
+SELECT a.user_id,
+a.sign_up_week,
+b.engagement_week,
+b.engagement_week - a.sign_up_week as retention_week 
+FROM 
+(
+(select distinct user_id, extract(week from occurred_at) as sign_up_week  
+from tutorial.yammer_events
+where event_type='signup_flow'
+and event_name='complete_signup'
+and extract(week from occurred_at)=18
+)a 
+left JOIN 
+(
+select distinct user_id,
+extract(week from occurred_at) as engagement_week
+from tutorial.yammer_events
+where event_type='engagement'
+)b 
+on a.user_id=b.user_id 
+)
+order by 
+a.user_id )a
+
+
+-- question 4 Weekly Engagement: To measure the activeness of a user. Measuring if the user finds quality in a product/service weekly.
+select
+extract(year from occurred_at)as year,
+extract(week from occurred_at)as week,
+device,
+COUNT(distinct user_id) as num_users
+FROM 
+tutorial.yammer_events
+WHERE
+event_type='engagement'
+group by 
+1,2,3
+order BY
+1,2,3
+
+--question 5 Email Engagement: Users engaging with the email service.
+select
+  100.0 *SUM(case when email_cat ='email_open' then 1 else 0 end )/SUM(case when email_cat='email_sent' then 1 else 0 end )as email_opened_rate,
+ 100.0* SUM(case when email_cat ='email_clicked' then 1 else 0 end )/SUM(case when email_cat='email_sent' then 1 else 0 end )as email_clicked_rate
+FROM 
+(
+SELECT 
+*,
+CASE
+  WHEN action in('sent_weekly_digest','sent_reenagagement_email')
+    then 'email_sent'
+  WHEN action in('email_open')
+    then 'email_open'
+  WHEN action in('email_clickthrough')
+    then 'email_clicked'
+  end as email_cat
+from tutorial.yammer_emails
+) a
